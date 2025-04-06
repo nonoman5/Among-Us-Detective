@@ -1,0 +1,266 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Among Us AI Detective</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a2e;
+            color: white;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .game-container {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            height: 400px;
+            background-color: #16213e;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .player {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            transition: all 0.3s ease-out;
+            transform: translateZ(0); /* Hardware acceleration */
+        }
+        
+        .timer {
+            font-size: 24px;
+            margin: 20px 0;
+        }
+        
+        button {
+            background-color: #e94560;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        
+        .result {
+            font-size: 24px;
+            margin-top: 20px;
+            height: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Among Us AI Detective</h1>
+    <p>Watch the AI players move around. One is the impostor and will kill others in one minute. Guess who it is!</p>
+    
+    <div class="timer">Time Left: 60s left</div>
+    
+    <div class="game-container" id="gameArea">
+        <!-- Players will be added here by this JavaScript -->
+    </div>
+    
+    <div class="button-container">
+        <button id="guessBtn">Make Your Guess</button>
+        <button id="newGameBtn">New Game</button>
+    </div>
+    
+    <div class="result" id="result"></div>
+
+    <script>
+        const colors = [
+            'red', 'green', 'blue', 'yellow', 'magenta', 
+            'cyan', 'orange', 'purple', 'teal', 'pink'
+        ];
+        const colorCodes = [
+            '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff',
+            '#00ffff', '#ff8800', '#8800ff', '#00ff88', '#ff0088'
+        ];
+        const gameArea = document.getElementById('gameArea');
+        const resultDiv = document.getElementById('result');
+        let players = [];
+        let impostorIndex;
+        let gameInterval;
+        let timeLeft = 60;
+        let gameActive = true;
+        let isTimerRunning = false;
+        let guessesLeft = 3;
+        
+        // Initialize game
+        function initGame() {
+            // Clear existing intervals first
+            if (window.gameTimer) {
+                clearInterval(window.gameTimer);
+            }
+            if (gameInterval) {
+                clearInterval(gameInterval);
+            }
+            
+            gameArea.innerHTML = '';
+            players = [];
+            timeLeft = 60;
+            gameActive = true;
+            guessesLeft = 3;
+            resultDiv.textContent = '';
+            document.querySelector('.timer').textContent = `Time Left: ${timeLeft}s`;
+            isTimerRunning = true;  
+            
+            impostorIndex = Math.floor(Math.random() * 10);
+            
+            // Create players
+            for (let i = 0; i < 10; i++) {
+                const player = document.createElement('div');
+                player.className = 'player';
+                player.style.backgroundColor = colorCodes[i];
+                player.dataset.index = i;
+                player.dataset.color = colors[i];
+                
+                // Initial random position
+                const x = Math.random() * (gameArea.clientWidth - 30);
+                const y = Math.random() * (gameArea.clientHeight - 30);
+                player.style.left = `${x}px`;
+                player.style.top = `${y}px`;
+                
+                gameArea.appendChild(player);
+                players.push({
+                    element: player,
+                    alive: true,
+                    x,
+                    y,
+                    targetX: x,
+                    targetY: y
+                });
+            }
+            
+            startGame();
+        }
+        
+        function startGame() {
+            // Clear any existing timer first
+            if (window.gameTimer) {
+                clearInterval(window.gameTimer);
+            }
+
+            // Set random movement targets
+            players.forEach(player => {
+                if (player.alive) {
+                    player.targetX = Math.random() * (gameArea.clientWidth - 30);
+                    player.targetY = Math.random() * (gameArea.clientHeight - 30);
+                }
+            });
+            
+            gameInterval = setInterval(updateGame, 100);
+            
+            // Countdown timer
+            window.gameTimer = setInterval(() => {
+                if (!isTimerRunning) return;
+                
+                timeLeft--;
+                document.querySelector('.timer').textContent = `Time Left: ${timeLeft}s`;
+                
+                if (timeLeft <= 0 || players.filter(p => p.alive).length <= 2) {
+                    clearInterval(window.gameTimer);
+                    gameActive = false;
+                    resultDiv.textContent = `Game Over! The impostor was ${colors[impostorIndex]}.`;
+                    clearInterval(gameInterval);
+                    isTimerRunning = false;
+                }
+            }, 1000);
+        }
+        
+        function updateGame() {
+            players.forEach((player, index) => {
+                if (!player.alive) {
+                    player.element.style.backgroundColor = '#555';
+                    return;
+                }
+                
+                // Move smoothly towards target
+                const dx = player.targetX - player.x;
+                const dy = player.targetY - player.y;
+                
+                // Update position values
+                player.x += dx * 0.05;
+                player.y += dy * 0.05;
+                
+                // Apply position with CSS (now smooth due to transition)
+                player.element.style.left = `${player.x}px`;
+                player.element.style.top = `${player.y}px`;
+                
+                // Change target if close enough
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < 5) {
+                    player.targetX = Math.random() * (gameArea.clientWidth - 30);
+                    player.targetY = Math.random() * (gameArea.clientHeight - 30);
+                }
+                
+                // Check if impostor kills someone (only when near another player)
+                if (index === impostorIndex && gameActive && players.filter(p => p.alive).length > 2) {
+                    
+                    // Check proximity check
+                    const nearby = players.some((p, i) => { 
+                        if (i === index || !p.alive) {
+                            return false;
+                        }
+                        const dx = p.x - player.x;
+                        const dy = p.y - player.y;
+                        return Math.sqrt(dx * dx + dy * dy) < 30;
+                    });
+
+                    if (Math.random() < 0.05 && nearby) {  
+                        const potentialVictims = players.filter((p, i) => i != index && p.alive);
+                        if (potentialVictims.length > 0) {
+                            const victim = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
+                            victim.alive = false;
+                        }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('guessBtn').addEventListener('click', () => {
+            if (!gameActive || guessesLeft <= 0) {
+                return;
+            }
+            
+            const alivePlayers = players.filter(p => p.alive);
+            const aliveColors = alivePlayers.map(p => p.element.dataset.color);
+            
+            const userGuess = prompt(`Guess the color of impostor: (Available colors: ${aliveColors.join(', ')})`)
+                   .toLowerCase();
+
+            if (!aliveColors.includes(userGuess)) {
+                alert(`Please enter one of the available colors: ${aliveColors.join(', ')}`);
+                return;
+            }
+            guessesLeft--;
+
+            if (colors.indexOf(userGuess) === impostorIndex) {
+                resultDiv.textContent = 'Correct! You found the impostor!';
+                gameActive = false;
+                isTimerRunning = false;
+                clearInterval(gameInterval);
+            } else if (guessesLeft > 0) {
+                resultDiv.textContent = `Wrong guess! ${guessesLeft} guesses left. Keep watching...`;
+            } else {
+                resultDiv.textContent = `Wrong guess! Game over. The impostor was ${colors[impostorIndex]}.`;
+                gameActive = false;
+                isTimerRunning = false;
+                clearInterval(gameInterval);
+            }
+        });
+
+        document.getElementById('newGameBtn').addEventListener('click', () => {
+            initGame();
+        });
+
+        // Start the game
+        initGame();
+    </script>
+</body>
+</html>
